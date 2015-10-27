@@ -33,8 +33,8 @@ class Scheduler:
             print('No offers in callback')
             return None
 
-        print('offer: ' + str(offers[0].resources.vector))
-        print('launching on ' + str(self.job_limit.vector))
+        print('offer: ' + str(offers[0].resources))
+        print('launching on ' + str(self.job_limit))
 
         self.allocator.accept(self.name, self.job_limit, offers[0])
         self.allocator.status()
@@ -103,13 +103,16 @@ class Allocator:
 
     def status(self):
         for agent_name, agent in self.agents.iteritems():
-            print 'total:    ' + str(agent.drf.total.vector)
-            print 'consumed: ' + str(agent.drf.consumed.vector)
+            print 'total:    ' + str(agent.drf.total)
+            print 'consumed: ' + str(agent.drf.consumed)
 
             for user_name, user in agent.drf.users.iteritems():
-                print 'consumed by ' + user_name + ' : ' + str(user.vector)
+                print 'consumed by ' + user_name + ' : ' + str(user)
 
             print 'share:    ' + str(agent.drf.order())
+
+    def tick(self):
+        pass
 
 
 class DRFList:
@@ -118,7 +121,7 @@ class DRFList:
         self.total = resources
 
         # Consumed resource
-        self.consumed = ResourceVector([0, 0])
+        self.consumed = ResourceVector([0] * resources.dimensions())
 
         # User vector
         self.users = {}
@@ -134,7 +137,7 @@ class DRFList:
 
     def add_user(self, name):
         self.max_fair_share[name] = 0.0
-        self.users[name] = ResourceVector([0, 0])
+        self.users[name] = ResourceVector([0] * self.total.dimensions())
 
     def allocate(self, user, resources):
         # Update consumed vector
