@@ -38,7 +38,7 @@ class DRF:
         # Missing in paper: choose machine with available capacity
         j = None
         for r in range(m):
-            # Per resouce dimension
+            # Per resource dimension
             for k in range(len(self.R[r])):
                 if D[k] > self.R[r][k]:
                     j = None
@@ -69,27 +69,30 @@ class DRF:
         self.s[i] = s_max
 
         print "schedule: %d" % i
-        print 'C: ' + str(self.C)
-        print 'U: ' + str(self.U)
-        print 's: ' + str(self.s)
+        print 'Total:     ' + str(self.R)
+        print 'Consumed:  ' + str(self.C)
+        print 'Used:      ' + str(self.U)
+        print 'Max share: ' + str(self.s)
 
 
 def main():
     drf = DRF()
 
-    # Add slaves
+    # Add slaves. In the paper, only one slave is available with 9 cores and 18 GB RAM.
     drf.R = [[9, 18]]
     drf.C = [[0, 0]]
 
-    # Add users
+    # Add users i.e. initialize max share and resources used vectors.
     drf.s = [0, 0]
     drf.U = [[0, 0], [0, 0]]
 
     # Add jobs
+    # For some reason, user B is favored. Therefore jobs_b is added as user 0.
     jobs_a = [[1, 4], [1, 4], [1, 4]]
     jobs_b = [[3, 1], [3, 1], [3, 1]]
     drf.D = [jobs_b, jobs_a]
 
+    # DRF paper runs 5 scheduling steps:
     drf.schedule()
     drf.schedule()
     drf.schedule()
