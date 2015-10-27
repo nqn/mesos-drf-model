@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from collections import OrderedDict
+
 import operator
 
 from resource_vector import ResourceVector
@@ -13,7 +15,9 @@ class Simulator:
         # Simulator have to drive allocations for now.
         # Allocation interval is default 1s in Mesos.
         for _ in range(ticks):
-            self.allocator.allocate()
+            for agent in self.allocator.agents.itervalues():
+                agent.tick()
+            self.allocator.tick()
 
 
 class Offer:
@@ -22,38 +26,36 @@ class Offer:
         self.resources = resources
 
 
-class Scheduler:
-    def __init__(self, name, allocator, job_limit):
-        self.name = name
-        self.allocator = allocator
-        self.job_limit = job_limit
-
-    def offer(self, offers):
-        if len(offers) == 0:
-            print('No offers in callback')
-            return None
-
-        print('offer: ' + str(offers[0].resources))
-        print('launching on ' + str(self.job_limit))
-
-        self.allocator.accept(self.name, self.job_limit, offers[0])
-        self.allocator.status()
-
-
 class Agent:
     def __init__(self, name, resources):
         self.name = name
         self.drf = DRFList(resources)
+        self.filters = {}
 
     def add_framework(self, name):
         self.drf.add_user(name)
+
+    def add_filter(self, framework_name, duration):
+        print 'Adding filter with duration %s for framework %s' % (duration,
+            framework_name)
+        self.filters[framework_name] = duration
+
+    def get_filter(self, framework_name):
+        return self.filters.get(framework_name)
+
+    def tick(self):
+        for framework_name in self.filters.keys():
+            new_duration = self.filters[framework_name] - 1
+            self.filters[framework_name] = new_duration
+            if new_duration <= 0:
+                print 'Clearing filter for framework %s' % framework_name
+                del self.filters[framework_name]
 
 
 class Allocator:
     def __init__(self):
         self.agents = {}
-        self.frameworks = {}
-        self.filters = {}
+        self.frameworks = OrderedDict()
 
     def add_agent(self, name, resources):
         self.agents[name] = Agent(name, resources)
@@ -78,17 +80,18 @@ class Allocator:
             resources = agent.drf.available()
 
             # Order all available resources to first framework.
-            name, _ = order[0]
+            for framework_name, _ in order:
+                print 'Allocator considering framework %s' % framework_name
+                if agent.get_filter(framework_name):
+                    print 'Framework %s is filtered: continue' % framework_name
+                    continue
 
-            if name in self.filters:
-                print '%s is filtered: continue' % name
-                pass
+                agent.drf.allocate(framework_name, resources)
 
-            agent.drf.allocate(name, resources)
-
-            # Form offer to scheduler
-            offer = Offer(agent, resources)
-            self.frameworks[name].offer([offer])
+                # Form offer to scheduler
+                offer = Offer(agent, resources)
+                self.frameworks[framework_name].offer([offer])
+                break
 
     def recover(self, agent_name, resources, user_name):
         self.agents[agent_name].drf.recover(user_name, resources)
@@ -97,9 +100,9 @@ class Allocator:
         recover = offer.resources.subtract(resources)
         self.recover(offer.agent.name, recover, user_name)
 
-    def decline(self, user_name, offer, refuse_steps=5):
-        self.filters[user_name] = refuse_steps
-        self.recover(offer.agent.name, offer.resources, user_name)
+    def decline(self, framework_name, offer, refuse_steps=5):
+        offer.agent.add_filter(framework_name, refuse_steps)
+        self.recover(offer.agent.name, offer.resources, framework_name)
 
     def status(self):
         for agent_name, agent in self.agents.iteritems():
@@ -112,7 +115,7 @@ class Allocator:
             print 'share:    ' + str(agent.drf.order())
 
     def tick(self):
-        pass
+        self.allocate()
 
 
 class DRFList:
@@ -158,21 +161,3 @@ class DRFList:
 
         s = self.users[user].divide(self.total)
         self.max_fair_share[user] = max(s.vector)
-
-
-def main():
-    allocator = Allocator()
-
-    # Take
-    allocator.add_agent('default', ResourceVector([9, 18]))
-
-    allocator.add_framework(Scheduler('B', allocator, ResourceVector([1, 4])))
-    allocator.add_framework(Scheduler('A', allocator, ResourceVector([3, 1])))
-
-    # TODO: Replace with simulator run
-    simulator = Simulator(allocator)
-    simulator.tick(5)
-
-
-if __name__ == '__main__':
-    main()
