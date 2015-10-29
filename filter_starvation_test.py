@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from resource_vector import ResourceVector
-from mesos_allocator import Allocator, Simulator
+from mesos_allocator import Allocator, Simulator, Task
 
 class InactiveScheduler:
     def __init__(self, name, allocator):
@@ -21,6 +21,7 @@ class StarvedScheduler:
         self.name = name
         self.allocator = allocator
         self.job_limit = job_limit
+        self.task_count = 0
 
     def offer(self, offers):
         if len(offers) == 0:
@@ -30,8 +31,16 @@ class StarvedScheduler:
         print('offer: ' + str(offers[0].resources))
         print('launching on ' + str(self.job_limit))
 
-        self.allocator.accept(self.name, self.job_limit, offers[0])
+        # Generate task id. Should be unique for framework.
+        self.task_count += 1
+
+        task = Task(self.name, str(self.task_count), self.job_limit)
+
+        self.allocator.launch(task, offers[0])
         self.allocator.status()
+
+    def status_update(self, status):
+        print(status)
 
 def main():
     allocator = Allocator()
