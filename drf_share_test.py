@@ -3,6 +3,7 @@
 from resource_vector import ResourceVector
 from mesos_allocator import Allocator, Simulator, Task
 
+
 class Scheduler:
     def __init__(self, name, allocator, job_limit):
         self.name = name

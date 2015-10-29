@@ -72,6 +72,10 @@ class Agent:
 
         for framework_name in self.frameworks.keys():
             for task_name in self.frameworks[framework_name].keys():
+                if self.frameworks[framework_name][task_name].duration is None:
+                    # Task never terminates.
+                    continue
+
                 new_duration = self.frameworks[framework_name][task_name].duration - 1
                 self.frameworks[framework_name][task_name].duration = new_duration
 
