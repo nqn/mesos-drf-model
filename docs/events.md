@@ -1,6 +1,7 @@
 # Events
 
-Events are written to `events.txt` and contains newline separated json objects representing events from the simulated runs.
+Events are written to a file named `events.txt` and contains newline-separated
+json objects where each line represents one event from the simulation run.
 
 ```
 {
