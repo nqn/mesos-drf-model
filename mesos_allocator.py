@@ -2,22 +2,39 @@
 
 from collections import OrderedDict
 
+from event_bus import EventSource, initialize_event_bus, publish_event
+
+import json
+
 import operator
 
 from resource_vector import ResourceVector
 
 
-class Simulator:
+global_time = 0
+initialize_event_bus(lambda: global_time)
+
+
+class Simulator(EventSource):
     def __init__(self, allocator):
         self.allocator = allocator
 
+    def source_name(self):
+        return "simulator"
+
+    def source_id(self):
+        return "mesos_drf_simulator"
+
     def tick(self, ticks=1):
+        global global_time
+
         # Simulator have to drive allocations for now.
         # Allocation interval is default 1s in Mesos.
         for _ in range(ticks):
             for agent in self.allocator.agents.itervalues():
                 agent.tick()
             self.allocator.tick()
+            global_time += 1
 
 
 class Task:
@@ -34,7 +51,7 @@ class Offer:
         self.resources = resources
 
 
-class Agent:
+class Agent(EventSource):
     def __init__(self, name, resources, allocator):
         self.name = name
         self.drf = DRFList(resources)
@@ -42,10 +59,19 @@ class Agent:
         self.frameworks = {}
         self.allocator = allocator
 
+    def source_name(self):
+        return "agent"
+
+    def source_id(self):
+        return self.name
+
     def add_framework(self, name):
+        publish_event(self, "add_framework", name)
         self.drf.add_user(name)
 
     def add_filter(self, framework_name, duration):
+        event_data = { "framework_name": framework_name, "duration": duration }
+        publish_event(self, "add_filter", event_data)
         print 'Adding filter with duration %s for framework %s' % (duration,
                                                                    framework_name)
         self.filters[framework_name] = duration
@@ -54,6 +80,7 @@ class Agent:
         return self.filters.get(framework_name)
 
     def launch(self, task):
+        publish_event(self, "launch_task", task)
         if task.framework_name not in self.frameworks:
             self.frameworks[task.framework_name] = {}
 
@@ -67,6 +94,8 @@ class Agent:
             new_duration = self.filters[framework_name] - 1
             self.filters[framework_name] = new_duration
             if new_duration <= 0:
+                event_data = { "framework_name": framework_name }
+                publish_event(self, "clear_filter", event_data)
                 print 'Clearing filter for framework %s' % framework_name
                 del self.filters[framework_name]
 
@@ -102,13 +131,24 @@ class Allocator:
         self.frameworks = OrderedDict()
         self.tasks = {}
 
+    def source_name(self):
+        return "allocator"
+
+    def source_id(self):
+        return "mesos_drf_allocator"
+
     def add_agent(self, name, resources):
+        event_data = { "agent_name": name, "resources": resources }
+        publish_event(self, "add_agent", event_data)
         self.agents[name] = Agent(name, resources, self)
 
     def remove_agent(self, name):
+        event_data = { "agent_name": name }
+        publish_event(self, "remove_agent", event_data)
         pass
 
     def add_framework(self, framework):
+        publish_event(self, "add_framework", framework.name)
         self.frameworks[framework.name] = framework
         for agent_name, agent in self.agents.iteritems():
             agent.add_framework(framework.name)
@@ -143,10 +183,24 @@ class Allocator:
 
                 # Form offer to scheduler
                 offer = Offer(agent, resources)
+
+                event_data = {
+                    "agent_name": agent.name,
+                    "framework_name": framework_name,
+                    "resources": resources,
+                }
+                publish_event(self, "resource_offer", event_data)
+
                 self.frameworks[framework_name].offer([offer])
                 break
 
     def recover(self, agent_name, resources, user_name):
+        event_data = {
+            "agent_name": agent_name,
+            "resources": resources,
+            "user_name": user_name,
+        }
+        publish_event(self, "recover_resources", event_data)
         self.agents[agent_name].drf.recover(user_name, resources)
 
     def launch(self, task, offer):
@@ -164,9 +218,19 @@ class Allocator:
         # Save reference to task to keep track of resources to free up.
         if task.framework_name not in self.tasks:
             self.tasks[task.framework_name] = {}
+
+        publish_event(self, "launch_task", task)
+
         self.tasks[task.framework_name][task.task_name] = task
 
     def decline(self, framework_name, offer, refuse_steps=5):
+        event_data = {
+            "framework_name": framework_name,
+            "agent_name": offer.agent.name,
+            "resources": offer.resources,
+            "filter_duration": refuse_steps,
+        }
+        publish_event(self, "decline_offer", event_data)
         offer.agent.add_filter(framework_name, refuse_steps)
         self.recover(offer.agent.name, offer.resources, framework_name)
 

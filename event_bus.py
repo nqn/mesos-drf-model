@@ -1,5 +1,6 @@
 import abc
 import json
+import types
 import unittest
 
 
@@ -8,7 +9,7 @@ class EventSource:
     """
 
     @abc.abstractmethod
-    def name(self):
+    def source_name(self):
         """Returns the name of this event source, for grouping.
 
         For example, this method might return "allocator" or "scheduler".
@@ -17,7 +18,7 @@ class EventSource:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def id(self):
+    def source_id(self):
         """Returns the id of this event source, for disambigbuation.
 
         For example, this method might return "drf_allocator" or
@@ -53,8 +54,33 @@ class JsonFileEventWriter(EventHandler):
 
         self.out_file = open(out_file_path, "w+")
 
+    def _is_class(self, value):
+        return isinstance(value, types.InstanceType)
+
+    def _represent(self, value):
+        if isinstance(value, list):
+            transform = lambda x: self._represent(x)
+            return map(transform, value)
+
+        if isinstance(value, dict):
+            transform = lambda (k,v): (k, self._represent(v))
+            result = dict(map(transform, value.iteritems()))
+            return result
+
+        if not self._is_class(value):
+            return value
+
+        # Attempt to invoke an optional representational override.
+        try:
+            return value.represent()
+
+        # Fall back to object dictionary
+        except:
+            return self._represent(value.__dict__)
+
     def handle(self, event):
-        json.dump(event, self.out_file)
+        representation = self._represent(event)
+        json.dump(representation, self.out_file)
         self.out_file.write("\n")
 
 
@@ -74,7 +100,7 @@ class EventBus:
         self.handlers = handlers
         self.current_time = current_time
 
-    def publish(self, source, event_name, data):
+    def publish(self, source, event_name, data=None):
         """Forwards an event to all of the configured event handlers.
 
         :param source: The source of the event.
@@ -95,8 +121,8 @@ class EventBus:
         event = {}
         event["name"] = event_name
         event["data"] = data
-        event["source"] = source.name()
-        event["id"] = source.id()
+        event["source"] = source.source_name()
+        event["id"] = source.source_id()
         event["time"] = self.current_time()
 
         for h in self.handlers:
@@ -127,7 +153,7 @@ def initialize_event_bus(current_time):
 
     global _event_bus
     if _event_bus is not None:
-        raise
+        raise Exception("Event bus must be initialized only once.")
     _event_bus = EventBus(_get_event_handlers({}), current_time)
 
 
@@ -140,8 +166,31 @@ def get_event_bus():
 
     global _event_bus
     if _event_bus is None:
-        raise
+        raise Exception("Event bus must be initialized before use.")
     return _event_bus
+
+
+def publish_event(source, event_name, data=None):
+    """Forwards an event to all of the configured event handlers for the
+    configured global event bus.
+
+    :param source: The source of the event.
+    :type source: EventSource
+
+    :param event_name: The name of the event, for grouping. For example,
+                       this value might be "offer_issued" or
+                       "task_finished".
+    :type event_name: str
+
+    :param data: Arbitrary additional data to describe the event. For
+                 example, this could describe resources that were offered
+                 to a scheduler, or the sizes and durations of the tasks
+                 in a scheduler queue.
+    :type data: mixed (dict, str, number, list)
+    """
+
+    global_event_bus = get_event_bus()
+    global_event_bus.publish(source, event_name, data)
 
 
 ###############################################################################
@@ -178,10 +227,10 @@ class TestEventBus(unittest.TestCase):
             def __init__(self, event_bus):
                 self.event_bus = event_bus
 
-            def name(self):
+            def source_name(self):
                 return "test_source_name"
 
-            def id(self):
+            def source_id(self):
                 return "test_source_id"
 
             def push_event(self, name, data):

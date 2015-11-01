@@ -2,6 +2,9 @@ class ResourceVector:
     def __init__(self, vector):
         self.vector = vector
 
+    def represent(self):
+        return self.vector
+
     def validate_input_vector(self, right):
         if right is None:
             print "Right value is none"
