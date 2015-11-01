@@ -18,7 +18,7 @@ class EventSource:
 
     @abc.abstractmethod
     def id(self):
-        """Returns the id of this event source, for disambuation.
+        """Returns the id of this event source, for disambigbuation.
 
         For example, this method might return "drf_allocator" or
         "first_fit_scheduler".
@@ -106,7 +106,7 @@ class EventBus:
 def _get_event_handlers(config):
     """Returns a list of the configured event handler instances.
 
-    :param config: A global program configuration object
+    :param config: A global program configuration object.
     :type config: dict
 
     :rtype: list of EventHandler
