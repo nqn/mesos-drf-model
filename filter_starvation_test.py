@@ -16,6 +16,12 @@ class InactiveScheduler:
         print("Framework %s declined offer" % self.name)
         self.allocator.decline(self.name, offers[0])
 
+    def status_update(self, status):
+        print(status)
+
+    def tick(self):
+        pass
+
 class StarvedScheduler:
     def __init__(self, name, allocator, job_limit):
         self.name = name
@@ -41,6 +47,9 @@ class StarvedScheduler:
 
     def status_update(self, status):
         print(status)
+
+    def tick(self):
+        pass
 
 def main():
     allocator = Allocator()

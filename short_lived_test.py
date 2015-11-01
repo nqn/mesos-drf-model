@@ -16,19 +16,22 @@ class ShortLivedScheduler:
             print('No offers in callback')
             return None
 
-        print('offer: ' + str(offers[0].resources))
-        print('launching on ' + str(self.job_limit))
-
         # Generate task id. Should be unique for framework.
         self.task_count += 1
 
         task = Task(self.name, str(self.task_count), self.job_limit, 3)
+
+        print('offer: ' + str(offers[0].resources))
+        print('launching on ' + str(self.job_limit))
 
         self.allocator.launch(task, offers[0])
         self.allocator.status()
 
     def status_update(self, status):
         print('Status update for task "' + status.task_name + '": ' + status.status)
+
+    def tick(self):
+        print("tick")
 
 
 def main():

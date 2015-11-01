@@ -33,6 +33,10 @@ class Simulator(EventSource):
         for _ in range(ticks):
             for agent in self.allocator.agents.itervalues():
                 agent.tick()
+
+            for framework in self.allocator.frameworks.itervalues():
+                framework.tick()
+
             self.allocator.tick()
             global_time += 1
 

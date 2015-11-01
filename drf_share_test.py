@@ -30,6 +30,9 @@ class Scheduler:
     def status_update(self, status):
         print(status)
 
+    def tick(self):
+        pass
+
 def main():
     allocator = Allocator()
 
